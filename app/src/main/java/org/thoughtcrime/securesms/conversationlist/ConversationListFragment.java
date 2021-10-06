@@ -26,6 +26,7 @@ import android.content.res.Resources;
 import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -37,6 +38,8 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.view.WindowManager;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -49,6 +52,7 @@ import androidx.annotation.MenuRes;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.PluralsRes;
+import androidx.annotation.RequiresApi;
 import androidx.annotation.WorkerThread;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -58,6 +62,7 @@ import androidx.appcompat.widget.TooltipCompat;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.constraintlayout.widget.ConstraintSet;
 import androidx.core.content.res.ResourcesCompat;
+import androidx.core.graphics.drawable.DrawableCompat;
 import androidx.fragment.app.DialogFragment;
 import androidx.lifecycle.ViewModelProviders;
 import androidx.recyclerview.widget.ItemTouchHelper;
@@ -67,6 +72,7 @@ import androidx.transition.TransitionManager;
 
 import com.annimon.stream.Stream;
 import com.google.android.material.snackbar.Snackbar;
+import com.google.android.material.tabs.TabLayout;
 
 import org.greenrobot.eventbus.EventBus;
 import org.greenrobot.eventbus.Subscribe;
@@ -170,32 +176,34 @@ public class ConversationListFragment extends MainFragment implements ActionMode
 
   private static final int MAXIMUM_PINNED_CONVERSATIONS = 4;
 
-  private ActionMode                        actionMode;
-  private ConstraintLayout                  constraintLayout;
-  private RecyclerView                      list;
-  private Stub<ReminderView>                reminderView;
-  private Stub<UnreadPaymentsView>          paymentNotificationView;
-  private Stub<ViewGroup>                   emptyState;
-  private TextView                          searchEmptyState;
-  private PulsingFloatingActionButton       fab;
-  private PulsingFloatingActionButton       cameraFab;
-  private Stub<SearchToolbar>               searchToolbar;
-  private ImageView                         proxyStatus;
-  private ImageView                         searchAction;
-  private View                              toolbarShadow;
-  private View                              unreadPaymentsDot;
-  private ConversationListViewModel         viewModel;
-  private RecyclerView.Adapter              activeAdapter;
-  private ConversationListAdapter           defaultAdapter;
-  private ConversationListSearchAdapter     searchAdapter;
-  private StickyHeaderDecoration            searchAdapterDecoration;
-  private Stub<ViewGroup>                   megaphoneContainer;
-  private SnapToTopDataObserver             snapToTopDataObserver;
-  private Drawable                          archiveDrawable;
-  private AppForegroundObserver.Listener    appForegroundObserver;
-  private VoiceNoteMediaControllerOwner     mediaControllerOwner;
-  private Stub<FrameLayout>                 voiceNotePlayerViewStub;
-  private VoiceNotePlayerView               voiceNotePlayerView;
+  private ActionMode                     actionMode;
+  private ConstraintLayout               constraintLayout;
+  private RecyclerView                   list;
+  private Stub<ReminderView>             reminderView;
+  private Stub<UnreadPaymentsView>       paymentNotificationView;
+  private Stub<ViewGroup>                emptyState;
+  private TextView                       searchEmptyState;
+  private PulsingFloatingActionButton    fab;
+  private PulsingFloatingActionButton    cameraFab;
+  private ImageView                      cameraBtn;
+  private Stub<SearchToolbar>            searchToolbar;
+  private ImageView                      proxyStatus;
+  private ImageView                      searchAction;
+  private View                           toolbarShadow;
+  private View                           unreadPaymentsDot;
+  private ConversationListViewModel      viewModel;
+  private RecyclerView.Adapter           activeAdapter;
+  private ConversationListAdapter        defaultAdapter;
+  private ConversationListSearchAdapter  searchAdapter;
+  private StickyHeaderDecoration         searchAdapterDecoration;
+  private Stub<ViewGroup>                megaphoneContainer;
+  private SnapToTopDataObserver          snapToTopDataObserver;
+  private Drawable                       archiveDrawable;
+  private AppForegroundObserver.Listener appForegroundObserver;
+  private VoiceNoteMediaControllerOwner  mediaControllerOwner;
+  private Stub<FrameLayout>              voiceNotePlayerViewStub;
+  private VoiceNotePlayerView            voiceNotePlayerView;
+  private TabLayout                      tablayout;
 
 
   private Stopwatch startupStopwatch;
@@ -220,6 +228,13 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     super.onCreate(icicle);
     setHasOptionsMenu(true);
     startupStopwatch = new Stopwatch("startup");
+
+    if (Build.VERSION.SDK_INT >= 21) {
+      Window window = getActivity().getWindow();
+      window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+      window.clearFlags(WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS);
+      window.setStatusBarColor(this.getResources().getColor(R.color.colorPrimaryDark));
+    }
   }
 
   @Override
@@ -227,12 +242,13 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     return inflater.inflate(R.layout.conversation_list_fragment, container, false);
   }
 
-  @Override
+  @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP) @Override
   public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
     constraintLayout        = view.findViewById(R.id.constraint_layout);
     list                    = view.findViewById(R.id.list);
     fab                     = view.findViewById(R.id.fab);
     cameraFab               = view.findViewById(R.id.camera_fab);
+    cameraBtn               = view.findViewById(R.id.camera);
     searchEmptyState        = view.findViewById(R.id.search_no_results);
     searchAction            = view.findViewById(R.id.search_action);
     toolbarShadow           = view.findViewById(R.id.conversation_list_toolbar_shadow);
@@ -244,15 +260,27 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     megaphoneContainer      = new Stub<>(view.findViewById(R.id.megaphone_container));
     paymentNotificationView = new Stub<>(view.findViewById(R.id.payments_notification));
     voiceNotePlayerViewStub = new Stub<>(view.findViewById(R.id.voice_note_player));
+    tablayout               = view.findViewById(R.id.tabLayout);
 
     Toolbar toolbar = getToolbar(view);
     toolbar.setVisibility(View.VISIBLE);
+    toolbar.getOverflowIcon().setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_ATOP);
     ((AppCompatActivity) requireActivity()).setSupportActionBar(toolbar);
+
+    toolbar.getOverflowIcon().setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_ATOP);
+
+    toolbar.getOverflowIcon().setTint(Color.WHITE);
+
+    //Geraud's Methods
+    //set default selected tab item in TabLayout
+
+    TabLayout.Tab tab       = tablayout.getTabAt(0);
+    tab.select();
 
     proxyStatus.setOnClickListener(v -> onProxyStatusClicked());
 
     fab.show();
-    cameraFab.show();
+    //cameraFab.show();
 
     list.setLayoutManager(new LinearLayoutManager(requireActivity()));
     list.setItemAnimator(new DeleteItemAnimator());
@@ -264,6 +292,17 @@ public class ConversationListFragment extends MainFragment implements ActionMode
 
     fab.setOnClickListener(v -> startActivity(new Intent(getActivity(), NewConversationActivity.class)));
     cameraFab.setOnClickListener(v -> {
+      Permissions.with(requireActivity())
+                 .request(Manifest.permission.CAMERA)
+                 .ifNecessary()
+                 .withRationaleDialog(getString(R.string.ConversationActivity_to_capture_photos_and_video_allow_signal_access_to_the_camera), R.drawable.ic_camera_24)
+                 .withPermanentDenialDialog(getString(R.string.ConversationActivity_signal_needs_the_camera_permission_to_take_photos_or_video))
+                 .onAllGranted(() -> startActivity(MediaSelectionActivity.camera(requireContext())))
+                 .onAnyDenied(() -> Toast.makeText(requireContext(), R.string.ConversationActivity_signal_needs_camera_permissions_to_take_photos_or_video, Toast.LENGTH_LONG).show())
+                 .execute();
+    });
+
+    cameraBtn.setOnClickListener(v -> {
       Permissions.with(requireActivity())
                  .request(Manifest.permission.CAMERA)
                  .ifNecessary()
@@ -289,7 +328,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
   public void onResume() {
     super.onResume();
 
-    updateReminders();
+    //updateReminders();
     EventBus.getDefault().register(this);
 
     if (Util.isDefaultSmsProvider(requireContext())) {
@@ -343,6 +382,15 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     inflater.inflate(R.menu.text_secure_normal, menu);
   }
 
+  public static void setOverflowButtonColor(final Toolbar toolbar, final int color) {
+    Drawable drawable = toolbar.getOverflowIcon();
+    if (drawable != null) {
+      drawable = DrawableCompat.wrap(drawable);
+      DrawableCompat.setTint(drawable.mutate(), color);
+      toolbar.setOverflowIcon(drawable);
+    }
+  }
+
   @Override
   public void onPrepareOptionsMenu(Menu menu) {
     menu.findItem(R.id.menu_insights).setVisible(Util.isDefaultSmsProvider(requireContext()));
@@ -354,12 +402,18 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     super.onOptionsItemSelected(item);
 
     switch (item.getItemId()) {
-      case R.id.menu_new_group:         handleCreateGroup();     return true;
-      case R.id.menu_settings:          handleDisplaySettings(); return true;
-      case R.id.menu_clear_passphrase:  handleClearPassphrase(); return true;
-      case R.id.menu_mark_all_read:     handleMarkAllRead();     return true;
-      case R.id.menu_invite:            handleInvite();          return true;
-      case R.id.menu_insights:          handleInsights();        return true;
+      case R.id.menu_new_group:
+        handleCreateGroup(); return true;
+      case R.id.menu_settings:
+        handleDisplaySettings(); return true;
+      case R.id.menu_clear_passphrase:
+        handleClearPassphrase(); return true;
+      case R.id.menu_mark_all_read:
+        handleMarkAllRead(); return true;
+      case R.id.menu_invite:
+        handleInvite(); return true;
+      case R.id.menu_insights:
+        handleInsights(); return true;
     }
 
     return false;
@@ -644,6 +698,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
   private void animatePaymentUnreadStatusIn() {
     animatePaymentUnreadStatus(ConstraintSet.VISIBLE);
     unreadPaymentsDot.animate().alpha(1);
+    tablayout.getTabAt(0).getOrCreateBadge().setBackgroundColor(getResources().getColor(R.color.wa_text_primary));
   }
 
   private void animatePaymentUnreadStatusOut() {
@@ -652,6 +707,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     }
 
     unreadPaymentsDot.animate().alpha(0);
+    tablayout.getTabAt(0).getOrCreateBadge().setAlpha(0);
   }
 
   private void animatePaymentUnreadStatus(int constraintSetVisibility) {
@@ -728,7 +784,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     }, reminder -> {
       if (reminder.isPresent() && getActivity() != null && !isRemoving()) {
         if (!reminderView.resolved()) {
-          initializeReminderView();
+          //initializeReminderView();
         }
         reminderView.get().showReminder(reminder.get());
       } else if (reminderView.resolved() && !reminder.isPresent()) {
@@ -1059,13 +1115,20 @@ public class ConversationListFragment extends MainFragment implements ActionMode
   @Override
   public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
     switch (item.getItemId()) {
-      case R.id.menu_select_all:       handleSelectAllThreads();     return true;
-      case R.id.menu_delete_selected:  handleDeleteAllSelected();    return true;
-      case R.id.menu_pin_selected:     handlePinAllSelected();       return true;
-      case R.id.menu_unpin_selected:   handleUnpinAllSelected();     return true;
-      case R.id.menu_archive_selected: handleArchiveAllSelected();   return true;
-      case R.id.menu_mark_as_read:     handleMarkSelectedAsRead();   return true;
-      case R.id.menu_mark_as_unread:   handleMarkSelectedAsUnread(); return true;
+      case R.id.menu_select_all:
+        handleSelectAllThreads(); return true;
+      case R.id.menu_delete_selected:
+        handleDeleteAllSelected(); return true;
+      case R.id.menu_pin_selected:
+        handlePinAllSelected(); return true;
+      case R.id.menu_unpin_selected:
+        handleUnpinAllSelected(); return true;
+      case R.id.menu_archive_selected:
+        handleArchiveAllSelected(); return true;
+      case R.id.menu_mark_as_read:
+        handleMarkSelectedAsRead(); return true;
+      case R.id.menu_mark_as_unread:
+        handleMarkSelectedAsUnread(); return true;
     }
 
     return false;
@@ -1076,16 +1139,16 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     defaultAdapter.initializeBatchMode(false);
 
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-      TypedArray color = getActivity().getTheme().obtainStyledAttributes(new int[] {android.R.attr.statusBarColor});
+      TypedArray color = getActivity().getTheme().obtainStyledAttributes(new int[] { android.R.attr.statusBarColor });
       WindowUtil.setStatusBarColor(getActivity().getWindow(), color.getColor(0, Color.BLACK));
       color.recycle();
     }
 
     if (Build.VERSION.SDK_INT >= 23) {
-      TypedArray lightStatusBarAttr = getActivity().getTheme().obtainStyledAttributes(new int[] {android.R.attr.windowLightStatusBar});
+      TypedArray lightStatusBarAttr = getActivity().getTheme().obtainStyledAttributes(new int[] { android.R.attr.windowLightStatusBar });
       int        current            = getActivity().getWindow().getDecorView().getSystemUiVisibility();
-      int        statusBarMode      = lightStatusBarAttr.getBoolean(0, false) ? current | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                                                                              : current & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+      int statusBarMode = lightStatusBarAttr.getBoolean(0, false) ? current | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                                                                  : current & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
 
       getActivity().getWindow().getDecorView().setSystemUiVisibility(statusBarMode);
 
@@ -1097,7 +1160,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
 
   @Subscribe(threadMode = ThreadMode.MAIN)
   public void onEvent(ReminderUpdateEvent event) {
-    updateReminders();
+    //updateReminders();
   }
 
   @Subscribe(threadMode = ThreadMode.MAIN, sticky = true)
@@ -1167,7 +1230,7 @@ public class ConversationListFragment extends MainFragment implements ActionMode
                                 Snackbar.LENGTH_LONG,
                                 false)
     {
-      private final ThreadDatabase threadDatabase= DatabaseFactory.getThreadDatabase(getActivity());
+      private final ThreadDatabase threadDatabase = DatabaseFactory.getThreadDatabase(getActivity());
 
       private List<Long> pinnedThreadIds;
 
@@ -1254,9 +1317,9 @@ public class ConversationListFragment extends MainFragment implements ActionMode
 
     @Override
     public int getSwipeDirs(@NonNull RecyclerView recyclerView, @NonNull RecyclerView.ViewHolder viewHolder) {
-      if (viewHolder.itemView instanceof ConversationListItemAction      ||
+      if (viewHolder.itemView instanceof ConversationListItemAction ||
           viewHolder instanceof ConversationListAdapter.HeaderViewHolder ||
-          actionMode != null                                             ||
+          actionMode != null ||
           activeAdapter == searchAdapter)
       {
         return 0;
@@ -1269,8 +1332,8 @@ public class ConversationListFragment extends MainFragment implements ActionMode
     @Override
     public void onSwiped(@NonNull RecyclerView.ViewHolder viewHolder, int direction) {
       if (viewHolder.itemView instanceof ConversationListItemInboxZero) return;
-      final long threadId    = ((ConversationListItem)viewHolder.itemView).getThreadId();
-      final int  unreadCount = ((ConversationListItem)viewHolder.itemView).getUnreadCount();
+      final long threadId    = ((ConversationListItem) viewHolder.itemView).getThreadId();
+      final int  unreadCount = ((ConversationListItem) viewHolder.itemView).getUnreadCount();
 
       onItemSwiped(threadId, unreadCount);
     }

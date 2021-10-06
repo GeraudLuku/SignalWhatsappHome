@@ -28,6 +28,8 @@
     <color name="transparent_white_90">#e6ffffff</color>
     <color name="transparent_white_95">#f3ffffff</color>
 
+    <color name="colorPrimaryDark">#075E54</color>
+
     <color name="conversation_compose_divider">#32000000</color>
 
     <color name="action_mode_status_bar">@color/core_grey_60</color>

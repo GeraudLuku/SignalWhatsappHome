@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:tint="@color/signal_icon_tint_primary"
-    android:src="@drawable/ic_message_24" />
+    app:srcCompat="@drawable/ic_baseline_message_24" />

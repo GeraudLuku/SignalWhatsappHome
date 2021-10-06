@@ -131,11 +131,11 @@ public final class ConversationListItem extends ConstraintLayout
     this.typingView              = findViewById(R.id.conversation_list_item_typing_indicator);
     this.fromView                = findViewById(R.id.conversation_list_item_name);
     this.dateView                = findViewById(R.id.conversation_list_item_date);
-    this.deliveryStatusIndicator = findViewById(R.id.conversation_list_item_status);
+   this.deliveryStatusIndicator = findViewById(R.id.conversation_list_item_status);
     this.alertView               = findViewById(R.id.conversation_list_item_alert);
     this.contactPhotoImage       = findViewById(R.id.conversation_list_item_avatar);
     this.thumbnailView           = findViewById(R.id.conversation_list_item_thumbnail);
-    this.archivedView            = findViewById(R.id.conversation_list_item_archived);
+    archivedView            = findViewById(R.id.conversation_list_item_archived);
     this.unreadIndicator         = findViewById(R.id.conversation_list_item_unread_indicator);
     this.badge                   = findViewById(R.id.conversation_list_item_badge);
     thumbnailView.setClickable(false);
@@ -191,7 +191,7 @@ public final class ConversationListItem extends ConstraintLayout
       dateView.setText(date);
       dateView.setTypeface(thread.isRead() ? LIGHT_TYPEFACE : BOLD_TYPEFACE);
       dateView.setTextColor(thread.isRead() ? ContextCompat.getColor(getContext(), R.color.signal_text_secondary)
-                                            : ContextCompat.getColor(getContext(), R.color.signal_text_primary));
+                                            : ContextCompat.getColor(getContext(), R.color.wa_text_primary));
     }
 
     if (thread.isArchived()) {
